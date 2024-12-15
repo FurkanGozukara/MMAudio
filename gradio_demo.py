@@ -143,8 +143,9 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-
+    
     with gr.Blocks() as demo:
+        gr.Markdown("# MMAudio SECourses APP V1 - https://www.patreon.com/posts/117990364")
         with gr.Tab("Video-to-Audio"):
             with gr.Row():
                 with gr.Column():
