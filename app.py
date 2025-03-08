@@ -403,13 +403,13 @@ def clear_image_inputs():
 # --------------------------
 
 with gr.Blocks() as demo:
-    gr.Markdown("# MMAudio SECourses APP V1")
+    gr.Markdown("# MMAudio SECourses APP V1 : https://www.patreon.com/posts/117990364")
     with gr.Tabs():
         # ---------------- Video-to-Audio Tab ----------------
         with gr.TabItem("Video-to-Audio"):
             with gr.Row():
                 with gr.Column(scale=1):
-                    video_input = gr.Video(label="Video Input")
+                    video_input = gr.Video(label="Video Input",height=512)
                     with gr.Row():
                         clear_btn_video = gr.Button("Clear")
                         submit_btn_video = gr.Button("Submit",variant="primary")

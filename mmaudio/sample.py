@@ -73,7 +73,7 @@ def sample(cfg: DictConfig):
 
     # loop
     audio_path = None
-    for curr_iter, data in enumerate(tqdm(loader, desc="Processing Batches")):
+    for curr_iter, data in enumerate(tqdm(loader)):
         new_audio_path = runner.inference_pass(data, curr_iter, data_cfg)
         if audio_path is None:
             audio_path = new_audio_path

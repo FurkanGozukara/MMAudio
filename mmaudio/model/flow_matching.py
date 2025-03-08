@@ -1,6 +1,8 @@
 import logging
+import sys  # Imported for single-line output updates
 from typing import Callable, Optional
 
+import time  # Added to measure step duration
 import torch
 from torchdiffeq import odeint
 
@@ -44,7 +46,6 @@ class FlowMatching:
         generator: Optional[torch.Generator] = None
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         x0 = torch.empty_like(x1).normal_(generator=generator)
-
         xt = self.get_conditional_flow(x0, x1, t)
         return x0, x1, xt, Cs
 
@@ -63,9 +64,16 @@ class FlowMatching:
             x = x0
             steps = torch.linspace(t0, t1 - self.min_sigma, self.num_steps + 1)
             for ti, t in enumerate(steps[:-1]):
+                step_start = time.time()
                 flow = fn(t, x)
                 next_t = steps[ti + 1]
                 dt = next_t - t
                 x = x + dt * flow
-
+                step_duration = time.time() - step_start
+                step_speed = 1 / step_duration if step_duration > 0 else float('inf')
+                # Update the same line with carriage return
+                sys.stdout.write(f"\rStep {ti+1}/{self.num_steps}: {step_speed:.1f} it/s")
+                sys.stdout.flush()
+            # Print a newline after finishing the loop
+            print()
         return x
