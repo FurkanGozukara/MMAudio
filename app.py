@@ -159,7 +159,7 @@ def text_to_audio_single(prompt: str, negative_prompt: str, seed: int, num_steps
                           cfg_strength=cfg_strength)
         audio = audios.float().cpu()[0]
         output_path = get_next_numbered_filename(output_folder, "mp3")
-        # If mono, duplicate channel to create stereo
+        # If mono, duplica<te channel to create stereo
         if audio.dim() == 2 and audio.shape[0] == 1:
             audio_stereo = torch.cat([audio, audio], dim=0)
             torchaudio.save(str(output_path), audio_stereo, seq_cfg.sampling_rate)
@@ -580,7 +580,7 @@ with gr.Blocks() as demo:
                         steps_slider_video = gr.Slider(label="Num steps", minimum=10, maximum=100, step=1, value=50, interactive=True)
                     with gr.Row():
                         guidance_slider_video = gr.Slider(label="Guidance Strength", minimum=1.5, maximum=10, step=0.1, value=4.5, interactive=True)
-                        duration_slider_video = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=8, interactive=True)
+                        duration_slider_video = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=5, interactive=True)
                 with gr.Column(scale=1):
                     output_videos = gr.Gallery(label="Output Videos", show_label=True, elem_id="output_videos")
                     status_video = gr.Markdown(label="Status", value="")
@@ -626,7 +626,7 @@ with gr.Blocks() as demo:
                         steps_slider_text = gr.Slider(label="Num steps", minimum=10, maximum=100, step=1, value=50, interactive=True)
                     with gr.Row():
                         guidance_slider_text = gr.Slider(label="Guidance Strength", minimum=1.5, maximum=10, step=0.1, value=4.5, interactive=True)
-                        duration_slider_text = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=8, interactive=True)
+                        duration_slider_text = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=5, interactive=True)
                 with gr.Column(scale=1):
                     output_audios_html = gr.HTML(label="Output Audios")
                     status_text = gr.Markdown(label="Status", value="")
@@ -671,7 +671,7 @@ with gr.Blocks() as demo:
                         steps_slider_image = gr.Slider(label="Num steps", minimum=10, maximum=100, step=1, value=50, interactive=True)
                     with gr.Row():
                         guidance_slider_image = gr.Slider(label="Guidance Strength", minimum=1.5, maximum=10, step=0.1, value=4.5, interactive=True)
-                        duration_slider_image = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=8, interactive=True)
+                        duration_slider_image = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=5, interactive=True)
                 with gr.Column(scale=1):
                     output_videos_image = gr.Gallery(label="Output Videos", show_label=True, elem_id="output_videos_image")
                     status_image = gr.Markdown(label="Status", value="")
