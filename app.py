@@ -38,6 +38,9 @@ else:
     log.warning('CUDA/MPS are not available, running on CPU')
 dtype = torch.bfloat16
 
+# Global flag for low VRAM mode; will be updated from command-line option
+LOW_VRAM = False
+
 # Use the pre‐configured “large_44k_v2” model
 model: ModelConfig = all_model_cfg['large_44k_v2']
 model.download_if_needed()
@@ -53,30 +56,57 @@ cancel_batch_text = False
 
 def get_model() -> tuple[MMAudio, FeaturesUtils, SequenceConfig]:
     seq_cfg = model.seq_cfg
-
-    net: MMAudio = get_my_mmaudio(model.model_name).to(device, dtype).eval()
-    net.load_weights(torch.load(model.model_path, map_location=device, weights_only=True))
+    if LOW_VRAM:
+        # Load the main network and feature extractor on CPU for low VRAM usage.
+        net: MMAudio = get_my_mmaudio(model.model_name).cpu().eval()
+        net.load_weights(torch.load(model.model_path, map_location='cpu', weights_only=True))
+        feature_utils = FeaturesUtils(
+            tod_vae_ckpt=model.vae_path,
+            synchformer_ckpt=model.synchformer_ckpt,
+            enable_conditions=True,
+            mode=model.mode,
+            bigvgan_vocoder_ckpt=model.bigvgan_16k_path,
+            need_vae_encoder=False
+        )
+        feature_utils = feature_utils.cpu().eval()
+    else:
+        # Load normally on GPU.
+        net: MMAudio = get_my_mmaudio(model.model_name).to(device, dtype).eval()
+        net.load_weights(torch.load(model.model_path, map_location=device, weights_only=True))
+        feature_utils = FeaturesUtils(
+            tod_vae_ckpt=model.vae_path,
+            synchformer_ckpt=model.synchformer_ckpt,
+            enable_conditions=True,
+            mode=model.mode,
+            bigvgan_vocoder_ckpt=model.bigvgan_16k_path,
+            need_vae_encoder=False
+        )
+        feature_utils = feature_utils.to(device, dtype).eval()
     log.info(f'Loaded weights from {model.model_path}')
-
-    feature_utils = FeaturesUtils(tod_vae_ckpt=model.vae_path,
-                                  synchformer_ckpt=model.synchformer_ckpt,
-                                  enable_conditions=True,
-                                  mode=model.mode,
-                                  bigvgan_vocoder_ckpt=model.bigvgan_16k_path,
-                                  need_vae_encoder=False)
-    feature_utils = feature_utils.to(device, dtype).eval()
-
     return net, feature_utils, model.seq_cfg
 
+# Global model variables.
 net, feature_utils, seq_cfg = get_model()
+
+def inference_generate(*args, **kwargs):
+    """
+    Wraps generate() to temporarily move the model and feature extractor to GPU
+    during inference and then move them back to CPU.
+    """
+    if LOW_VRAM:
+        net.to(device, dtype)
+        feature_utils.to(device, dtype)
+    result = generate(*args, **kwargs)
+    if LOW_VRAM:
+        net.cpu()
+        feature_utils.cpu()
+        if device != 'cpu':
+            torch.cuda.empty_cache()
+    return result
 
 # -----------------------------------------------------------------------------
 # Updated filename generator that checks both MP4 and MP3 files
 def get_next_numbered_filename(target_dir: Path, extension: str) -> Path:
-    """
-    Returns a filename in target_dir with numbering (e.g. 0001.mp4 or 0001.mp3) that does not yet exist,
-    checking for both .mp4 and .mp3 extensions.
-    """
     i = 1
     while True:
         filename_mp3 = target_dir / f"{i:04d}.mp3"
@@ -106,14 +136,16 @@ def video_to_audio_single(video, prompt: str, negative_prompt: str, seed: int, n
         local_seed = torch.seed() if seed == -1 else seed + i
         rng.manual_seed(local_seed)
         fm = FlowMatching(min_sigma=0, inference_mode='euler', num_steps=int(num_steps))
-        audios = generate(clip_frames,
-                          sync_frames, [prompt],
-                          negative_text=[negative_prompt],
-                          feature_utils=feature_utils,
-                          net=net,
-                          fm=fm,
-                          rng=rng,
-                          cfg_strength=cfg_strength)
+        audios = inference_generate(
+            clip_frames,
+            sync_frames, [prompt],
+            negative_text=[negative_prompt],
+            feature_utils=feature_utils,
+            net=net,
+            fm=fm,
+            rng=rng,
+            cfg_strength=cfg_strength
+        )
         audio = audios.float().cpu()[0]
         output_path = get_next_numbered_filename(output_dir, "mp4")
         make_video(video_info, output_path, audio, sampling_rate=seq_cfg.sampling_rate)
@@ -159,14 +191,16 @@ def text_to_audio_single(prompt: str, negative_prompt: str, seed: int, num_steps
         local_seed = torch.seed() if seed == -1 else seed + i
         rng.manual_seed(local_seed)
         fm = FlowMatching(min_sigma=0, inference_mode='euler', num_steps=int(num_steps))
-        audios = generate(None,
-                          None, [prompt],
-                          negative_text=[negative_prompt],
-                          feature_utils=feature_utils,
-                          net=net,
-                          fm=fm,
-                          rng=rng,
-                          cfg_strength=cfg_strength)
+        audios = inference_generate(
+            None,
+            None, [prompt],
+            negative_text=[negative_prompt],
+            feature_utils=feature_utils,
+            net=net,
+            fm=fm,
+            rng=rng,
+            cfg_strength=cfg_strength
+        )
         audio = audios.float().cpu()[0]
         output_path = get_next_numbered_filename(output_folder, "mp3")
         if audio.dim() == 2 and audio.shape[0] == 1:
@@ -235,15 +269,17 @@ def image_to_audio_single(image, prompt: str, negative_prompt: str, seed: int, n
         local_seed = torch.seed() if seed == -1 else seed + i
         rng.manual_seed(local_seed)
         fm = FlowMatching(min_sigma=0, inference_mode='euler', num_steps=int(num_steps))
-        audios = generate(clip_frames,
-                          sync_frames, [prompt],
-                          negative_text=[negative_prompt],
-                          feature_utils=feature_utils,
-                          net=net,
-                          fm=fm,
-                          rng=rng,
-                          cfg_strength=cfg_strength,
-                          image_input=True)
+        audios = inference_generate(
+            clip_frames,
+            sync_frames, [prompt],
+            negative_text=[negative_prompt],
+            feature_utils=feature_utils,
+            net=net,
+            fm=fm,
+            rng=rng,
+            cfg_strength=cfg_strength,
+            image_input=True
+        )
         audio = audios.float().cpu()[0]
         output_path = get_next_numbered_filename(output_dir, "mp4")
         video_info_local = VideoInfo.from_image_info(image_info, duration, fps=Fraction(1))
@@ -316,14 +352,16 @@ def batch_video_to_audio(video_path: str, prompt: str, negative_prompt: str, see
         local_seed = torch.seed() if seed == -1 else seed + i
         rng.manual_seed(local_seed)
         fm = FlowMatching(min_sigma=0, inference_mode='euler', num_steps=int(num_steps))
-        audios = generate(clip_frames,
-                          sync_frames, [prompt],
-                          negative_text=[negative_prompt],
-                          feature_utils=feature_utils,
-                          net=net,
-                          fm=fm,
-                          rng=rng,
-                          cfg_strength=cfg_strength)
+        audios = inference_generate(
+            clip_frames,
+            sync_frames, [prompt],
+            negative_text=[negative_prompt],
+            feature_utils=feature_utils,
+            net=net,
+            fm=fm,
+            rng=rng,
+            cfg_strength=cfg_strength
+        )
         audio = audios.float().cpu()[0]
         base_name = Path(video_path).stem
         ext = ".mp4"
@@ -353,9 +391,9 @@ def batch_video_to_audio(video_path: str, prompt: str, negative_prompt: str, see
         elapsed = time.time() - start_time
         iter_time = time.time() - iter_start
         processed = i + 1
-        avg_time = elapsed / processed
+        avg_time = elapsed / processed if processed > 0 else 0
         remain = total - processed
-        eta = avg_time * remain
+        eta = avg_time * remain if processed > 0 else 0
         print(f"File {video_path}: Generation {processed}/{total} completed. Generation took {iter_time:.2f}s, avg: {avg_time:.2f}s, ETA: {eta:.2f}s.")
     gc.collect()
     return results
@@ -384,15 +422,17 @@ def batch_image_to_audio(image_path: str, prompt: str, negative_prompt: str, see
         local_seed = torch.seed() if seed == -1 else seed + i
         rng.manual_seed(local_seed)
         fm = FlowMatching(min_sigma=0, inference_mode='euler', num_steps=int(num_steps))
-        audios = generate(clip_frames,
-                          sync_frames, [prompt],
-                          negative_text=[negative_prompt],
-                          feature_utils=feature_utils,
-                          net=net,
-                          fm=fm,
-                          rng=rng,
-                          cfg_strength=cfg_strength,
-                          image_input=True)
+        audios = inference_generate(
+            clip_frames,
+            sync_frames, [prompt],
+            negative_text=[negative_prompt],
+            feature_utils=feature_utils,
+            net=net,
+            fm=fm,
+            rng=rng,
+            cfg_strength=cfg_strength,
+            image_input=True
+        )
         audio = audios.float().cpu()[0]
         base_name = Path(image_path).stem
         out_filename = base_name + ".mp4" if generations == 1 else f"{base_name}_{i:02d}.mp4"
@@ -426,9 +466,9 @@ def batch_image_to_audio(image_path: str, prompt: str, negative_prompt: str, see
         elapsed = time.time() - start_time
         iter_time = time.time() - iter_start
         processed = i + 1
-        avg_time = elapsed / processed
+        avg_time = elapsed / processed if processed > 0 else 0
         remain = total - processed
-        eta = avg_time * remain
+        eta = avg_time * remain if processed > 0 else 0
         print(f"File {image_path}: Generation {processed}/{total} completed. Generation took {iter_time:.2f}s, avg: {avg_time:.2f}s, ETA: {eta:.2f}s.")
     gc.collect()
     return results
@@ -498,8 +538,8 @@ def batch_image_processing_callback(batch_in_folder: str, batch_out_folder: str,
     processed_global = 0
     log_lines = []
     start_time_global = time.time()
-    if total_files == 0:
-        yield "No image files found in the input folder."
+    if len(files) == 0:
+        yield "No image files found."
         return
     for f in files:
         if cancel_batch_image:
@@ -808,7 +848,7 @@ def load_and_set_config(config_name: str):
 # Gradio Interface – Using Blocks
 # --------------------------
 with gr.Blocks() as demo:
-    gr.Markdown("# MMAudio SECourses APP V4 : https://www.patreon.com/posts/117990364")
+    gr.Markdown("# MMAudio SECourses APP V5 : https://www.patreon.com/posts/117990364")
     
     # ---------------- Config Management Row ----------------
     with gr.Row():
@@ -975,9 +1015,9 @@ with gr.Blocks() as demo:
             config_name_text, config_dropdown,  # pass both new name and current selected config
             prompt_video, neg_prompt_video, seed_slider_video, steps_slider_video, guidance_slider_video, duration_slider_video, gen_slider_video, save_params_video,
             batch_input_videos, batch_output_videos, skip_checkbox_video, batch_save_params_video,
-            prompt_text, neg_prompt_text, seed_slider_text, steps_slider_text, guidance_slider_text, duration_slider_text, gen_slider_text, save_params_text,
+            prompt_text, neg_prompt_text, seed_slider_text, gen_slider_text, steps_slider_text, guidance_slider_text, duration_slider_text, save_params_text,
             batch_prompts, batch_output_text, batch_save_params_text,
-            prompt_image, neg_prompt_image, seed_slider_image, steps_slider_image, guidance_slider_image, duration_slider_image, gen_slider_image, save_params_image,
+            prompt_image, neg_prompt_image, seed_slider_image, gen_slider_image, steps_slider_image, guidance_slider_image, duration_slider_image, save_params_image,
             batch_input_images, batch_output_images, skip_checkbox_image, batch_save_params_image
         ],
         outputs=[config_status, config_dropdown]
@@ -1019,5 +1059,7 @@ with gr.Blocks() as demo:
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument('--share', action='store_true', help='Share Gradio app')
+    parser.add_argument('--lowvram', action='store_true', help='Enable low VRAM mode with CPU offloading')
     args = parser.parse_args()
+    LOW_VRAM = args.lowvram
     demo.launch(inbrowser=True, share=args.share, allowed_paths=[str(output_dir)])
