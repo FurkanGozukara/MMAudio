@@ -876,7 +876,7 @@ with gr.Blocks() as demo:
                         steps_slider_video = gr.Slider(label="Num steps", minimum=10, maximum=100, step=1, value=50, interactive=True)
                     with gr.Row():
                         guidance_slider_video = gr.Slider(label="Guidance Strength", minimum=1.5, maximum=10, step=0.1, value=4.5, interactive=True)
-                        duration_slider_video = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=5, interactive=True)
+                        duration_slider_video = gr.Slider(label="Duration (sec)", minimum=1, maximum=120, step=1, value=5, interactive=True)
                     save_params_video = gr.Checkbox(label="Save Gen Params", value=True, interactive=True)
                 with gr.Column(scale=1):
                     output_videos = gr.Gallery(label="Output Videos", show_label=True, elem_id="output_videos")
