@@ -150,6 +150,7 @@ MMAudio was trained on several datasets, including [AudioSet](https://research.g
 
 ## Update Logs
 
+- 2025-03-09: Uploaded the corrected tsv files. See [TRAINING.md](docs/TRAINING.md).
 - 2025-02-27: Disabled the GradScaler by default to improve training stability. See #49.
 - 2024-12-23: Added training and batch evaluation scripts.
 - 2024-12-14: Removed the `ffmpeg<7` requirement for the demos by replacing `torio.io.StreamingMediaDecoder` with `pyav` for reading frames. The read frames are also cached, so we are not reading the same frames again during reconstruction. This should speed things up and make installation less of a hassle.
@@ -159,11 +160,11 @@ MMAudio was trained on several datasets, including [AudioSet](https://research.g
 ## Citation
 
 ```bibtex
-@inproceedings{cheng2024taming,
+@inproceedings{cheng2025taming,
   title={Taming Multimodal Joint Training for High-Quality Video-to-Audio Synthesis},
   author={Cheng, Ho Kei and Ishii, Masato and Hayakawa, Akio and Shibuya, Takashi and Schwing, Alexander and Mitsufuji, Yuki},
-  booktitle={arXiv},
-  year={2024}
+  booktitle={CVPR},
+  year={2025}
 }
 ```
 
