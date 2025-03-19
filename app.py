@@ -120,7 +120,7 @@ def get_next_numbered_filename(target_dir: Path, extension: str) -> Path:
 # --------------------------
 @torch.inference_mode()
 def video_to_audio_single(video, prompt: str, negative_prompt: str, seed: int, num_steps: int,
-                          cfg_strength: float, duration: float, generations: int, save_params: bool = True):
+                          cfg_strength: float, duration: float, generations: int, save_params: bool = True, save_audio: bool = False):
     results = []
     video_info = load_video(video, duration)
     clip_frames = video_info.clip_frames.unsqueeze(0)
@@ -149,6 +149,15 @@ def video_to_audio_single(video, prompt: str, negative_prompt: str, seed: int, n
         audio = audios.float().cpu()[0]
         output_path = get_next_numbered_filename(output_dir, "mp4")
         make_video(video_info, output_path, audio, sampling_rate=seq_cfg.sampling_rate)
+        
+        if save_audio:
+            audio_output_path = get_next_numbered_filename(output_dir, "mp3")
+            if audio.dim() == 2 and audio.shape[0] == 1:
+                audio_stereo = torch.cat([audio, audio], dim=0)
+                torchaudio.save(str(audio_output_path), audio_stereo, seq_cfg.sampling_rate)
+            else:
+                torchaudio.save(str(audio_output_path), audio, seq_cfg.sampling_rate)
+        
         if save_params:
             params_content = (
                 f"Generation Type: Video-to-Audio\n"
@@ -244,7 +253,7 @@ def text_to_audio_single(prompt: str, negative_prompt: str, seed: int, num_steps
 
 @torch.inference_mode()
 def image_to_audio_single(image, prompt: str, negative_prompt: str, seed: int, num_steps: int,
-                          cfg_strength: float, duration: float, generations: int, save_params: bool = True):
+                          cfg_strength: float, duration: float, generations: int, save_params: bool = True, save_audio: bool = False):
     results = []
     image_info = load_image(image)
     clip_frames = image_info.clip_frames.unsqueeze(0)
@@ -291,6 +300,13 @@ def image_to_audio_single(image, prompt: str, negative_prompt: str, seed: int, n
             if new_H != H or new_W != W:
                 video_info_local.clip_frames = frames[:, :, :new_H, :new_W]
         make_video(video_info_local, output_path, audio, sampling_rate=seq_cfg.sampling_rate)
+        if save_audio:
+            audio_output_path = get_next_numbered_filename(output_dir, "mp3")
+            if audio.dim() == 2 and audio.shape[0] == 1:
+                audio_stereo = torch.cat([audio, audio], dim=0)
+                torchaudio.save(str(audio_output_path), audio_stereo, seq_cfg.sampling_rate)
+            else:
+                torchaudio.save(str(audio_output_path), audio, seq_cfg.sampling_rate)
         if save_params:
             params_content = (
                 f"Generation Type: Image-to-Audio (experimental)\n"
@@ -320,16 +336,16 @@ def image_to_audio_single(image, prompt: str, negative_prompt: str, seed: int, n
     return results, "Done"
 
 # --- Wrapper functions for single processing ---
-def video_to_audio_single_wrapper(video, prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, save_params):
-    results = video_to_audio_single(video, prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, save_params)
+def video_to_audio_single_wrapper(video, prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, save_params, save_audio):
+    results = video_to_audio_single(video, prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, save_params, save_audio)
     return results, "Done"
 
 def text_to_audio_single_wrapper(prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, save_params):
     html_output, _ = text_to_audio_single(prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, output_folder=output_dir, save_params=save_params)
     return html_output, "Done"
 
-def image_to_audio_single_wrapper(image, prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, save_params):
-    results, _ = image_to_audio_single(image, prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, save_params)
+def image_to_audio_single_wrapper(image, prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, save_params, save_audio):
+    results, _ = image_to_audio_single(image, prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, save_params, save_audio)
     return results, "Done"
 
 # --------------------------
@@ -337,7 +353,7 @@ def image_to_audio_single_wrapper(image, prompt, negative_prompt, seed, num_step
 # --------------------------
 @torch.inference_mode()
 def batch_video_to_audio(video_path: str, prompt: str, negative_prompt: str, seed: int,
-                           num_steps: int, cfg_strength: float, duration: float, generations: int, output_folder: Path, save_params: bool):
+                           num_steps: int, cfg_strength: float, duration: float, generations: int, output_folder: Path, save_params: bool, save_audio: bool = False):
     video_info = load_video(video_path, duration)
     clip_frames = video_info.clip_frames.unsqueeze(0)
     sync_frames = video_info.sync_frames.unsqueeze(0)
@@ -371,6 +387,13 @@ def batch_video_to_audio(video_path: str, prompt: str, negative_prompt: str, see
             out_filename = f"{base_name}_{i:02d}{ext}"
         output_path = output_folder / out_filename
         make_video(video_info, output_path, audio, sampling_rate=seq_cfg.sampling_rate)
+        if save_audio:
+            audio_output_path = get_next_numbered_filename(output_folder, "mp3")
+            if audio.dim() == 2 and audio.shape[0] == 1:
+                audio_stereo = torch.cat([audio, audio], dim=0)
+                torchaudio.save(str(audio_output_path), audio_stereo, seq_cfg.sampling_rate)
+            else:
+                torchaudio.save(str(audio_output_path), audio, seq_cfg.sampling_rate)
         if save_params:
             params_content = (
                 f"Generation Type: Video-to-Audio (Batch)\n"
@@ -400,7 +423,7 @@ def batch_video_to_audio(video_path: str, prompt: str, negative_prompt: str, see
 
 @torch.inference_mode()
 def batch_image_to_audio(image_path: str, prompt: str, negative_prompt: str, seed: int,
-                           num_steps: int, cfg_strength: float, duration: float, generations: int, output_folder: Path, save_params: bool):
+                           num_steps: int, cfg_strength: float, duration: float, generations: int, output_folder: Path, save_params: bool, save_audio: bool = False):
     image_info = load_image(image_path)
     clip_frames = image_info.clip_frames.unsqueeze(0)
     sync_frames = image_info.sync_frames.unsqueeze(0)
@@ -446,6 +469,13 @@ def batch_image_to_audio(image_path: str, prompt: str, negative_prompt: str, see
             if new_H != H or new_W != W:
                 video_info_local.clip_frames = frames[:, :, :new_H, :new_W]
         make_video(video_info_local, output_path, audio, sampling_rate=seq_cfg.sampling_rate)
+        if save_audio:
+            audio_output_path = get_next_numbered_filename(output_folder, "mp3")
+            if audio.dim() == 2 and audio.shape[0] == 1:
+                audio_stereo = torch.cat([audio, audio], dim=0)
+                torchaudio.save(str(audio_output_path), audio_stereo, seq_cfg.sampling_rate)
+            else:
+                torchaudio.save(str(audio_output_path), audio, seq_cfg.sampling_rate)
         if save_params:
             params_content = (
                 f"Generation Type: Image-to-Audio (Batch)\n"
@@ -475,7 +505,7 @@ def batch_image_to_audio(image_path: str, prompt: str, negative_prompt: str, see
 
 def batch_video_processing_callback(batch_in_folder: str, batch_out_folder: str, skip_existing: bool,
                                     prompt: str, negative_prompt: str, seed: int, num_steps: int,
-                                    cfg_strength: float, duration: float, generations: int, save_params: bool):
+                                    cfg_strength: float, duration: float, generations: int, save_params: bool, save_audio: bool):
     global cancel_batch_video
     cancel_batch_video = False
     in_path = Path(batch_in_folder)
@@ -510,7 +540,7 @@ def batch_video_processing_callback(batch_in_folder: str, batch_out_folder: str,
             yield "\n".join(log_lines)
             continue
         try:
-            results = batch_video_to_audio(str(f), effective_prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, out_path, save_params)
+            results = batch_video_to_audio(str(f), effective_prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, out_path, save_params, save_audio)
             processed_global += len(results)
             elapsed_global = time.time() - start_time_global
             avg_time_global = elapsed_global / processed_global if processed_global > 0 else 0
@@ -525,7 +555,7 @@ def batch_video_processing_callback(batch_in_folder: str, batch_out_folder: str,
 
 def batch_image_processing_callback(batch_in_folder: str, batch_out_folder: str, skip_existing: bool,
                                     prompt: str, negative_prompt: str, seed: int, num_steps: int,
-                                    cfg_strength: float, duration: float, generations: int, save_params: bool):
+                                    cfg_strength: float, duration: float, generations: int, save_params: bool, save_audio: bool):
     global cancel_batch_image
     cancel_batch_image = False
     in_path = Path(batch_in_folder)
@@ -563,7 +593,7 @@ def batch_image_processing_callback(batch_in_folder: str, batch_out_folder: str,
                 yield "\n".join(log_lines)
                 continue
         try:
-            results = batch_image_to_audio(str(f), effective_prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, out_path, save_params)
+            results = batch_image_to_audio(str(f), effective_prompt, negative_prompt, seed, num_steps, cfg_strength, duration, generations, out_path, save_params, save_audio)
             processed_global += len(results)
             elapsed_global = time.time() - start_time_global
             avg_time_global = elapsed_global / processed_global if processed_global else 0
@@ -671,6 +701,7 @@ if not default_config_path.exists():
             "duration": 5,
             "generations": 1,
             "save_params": True,
+            "save_audio": False,
             "batch_input": "",
             "batch_output": str(output_dir),
             "skip_existing": True,
@@ -698,6 +729,7 @@ if not default_config_path.exists():
             "duration": 5,
             "generations": 1,
             "save_params": True,
+            "save_audio": False,
             "batch_input": "",
             "batch_output": str(output_dir),
             "skip_existing": True,
@@ -727,12 +759,10 @@ def refresh_config_dropdown_select(new_config):
 def save_config(
     config_name,
     current_config,  # new parameter: current selected config
-    v_prompt, v_neg_prompt, v_seed, v_steps, v_guidance, v_duration, v_generations, v_save_params,
-    v_batch_input, v_batch_output, v_skip_existing, v_batch_save_params,
-    t_prompt, t_neg_prompt, t_seed, t_steps, t_guidance, t_duration, t_generations, t_save_params,
+    v_prompt, v_neg_prompt, v_seed, v_steps, v_guidance, v_duration, v_generations, v_save_params, v_save_audio, v_batch_input, v_batch_output, v_skip_existing, v_batch_save_params,
+    t_prompt, t_neg_prompt, t_seed, t_generations, t_steps, t_guidance, t_duration, t_save_params,
     t_batch_prompts, t_batch_output, t_batch_save_params,
-    i_prompt, i_neg_prompt, i_seed, i_steps, i_guidance, i_duration, i_generations, i_save_params,
-    i_batch_input, i_batch_output, i_skip_existing, i_batch_save_params
+    i_prompt, i_neg_prompt, i_seed, i_generations, i_steps, i_guidance, i_duration, i_save_params, i_save_audio, i_batch_input, i_batch_output, i_skip_existing, i_batch_save_params
 ):
     # If no new config name is provided, save on the current selected config.
     if not config_name:
@@ -747,6 +777,7 @@ def save_config(
             "duration": v_duration,
             "generations": v_generations,
             "save_params": v_save_params,
+            "save_audio": v_save_audio,
             "batch_input": v_batch_input,
             "batch_output": v_batch_output,
             "skip_existing": v_skip_existing,
@@ -757,9 +788,9 @@ def save_config(
             "neg_prompt": t_neg_prompt,
             "seed": t_seed,
             "num_steps": t_steps,
+            "generations": t_generations,
             "guidance": t_guidance,
             "duration": t_duration,
-            "generations": t_generations,
             "save_params": t_save_params,
             "batch_prompts": t_batch_prompts,
             "batch_output": t_batch_output,
@@ -770,10 +801,11 @@ def save_config(
             "neg_prompt": i_neg_prompt,
             "seed": i_seed,
             "num_steps": i_steps,
+            "generations": i_generations,
             "guidance": i_guidance,
             "duration": i_duration,
-            "generations": i_generations,
             "save_params": i_save_params,
+            "save_audio": i_save_audio,
             "batch_input": i_batch_input,
             "batch_output": i_batch_output,
             "skip_existing": i_skip_existing,
@@ -790,9 +822,9 @@ def load_config(config_name):
     config_path = config_folder / f"{config_name}.json"
     if not config_path.exists():
         return (
-            "", "music", -1, 1, 50, 4.5, 5, True, "", str(output_dir), True, True,
+            "", "music", -1, 1, 50, 4.5, 5, True, False, "", str(output_dir), True, True,
             "", "", -1, 1, 50, 4.5, 5, True, "", str(output_dir), True,
-            "", "", -1, 1, 50, 4.5, 5, True, "", str(output_dir), True, True
+            "", "", -1, 1, 50, 4.5, 5, True, False, "", str(output_dir), True, True
         )
     with open(config_path, "r") as f:
         config = json.load(f)
@@ -808,6 +840,7 @@ def load_config(config_name):
         video.get("guidance", 4.5),
         video.get("duration", 5),
         video.get("save_params", True),
+        video.get("save_audio", False),
         video.get("batch_input", ""),
         video.get("batch_output", str(output_dir)),
         video.get("skip_existing", True),
@@ -833,6 +866,7 @@ def load_config(config_name):
         image.get("guidance", 4.5),
         image.get("duration", 5),
         image.get("save_params", True),
+        image.get("save_audio", False),
         image.get("batch_input", ""),
         image.get("batch_output", str(output_dir)),
         image.get("skip_existing", True),
@@ -848,7 +882,7 @@ def load_and_set_config(config_name: str):
 # Gradio Interface – Using Blocks
 # --------------------------
 with gr.Blocks() as demo:
-    gr.Markdown("# MMAudio SECourses APP V5 : https://www.patreon.com/posts/117990364")
+    gr.Markdown("# MMAudio SECourses APP V7 : https://www.patreon.com/posts/117990364")
     
     # ---------------- Config Management Row ----------------
     with gr.Row():
@@ -876,8 +910,10 @@ with gr.Blocks() as demo:
                         steps_slider_video = gr.Slider(label="Num steps", minimum=10, maximum=100, step=1, value=50, interactive=True)
                     with gr.Row():
                         guidance_slider_video = gr.Slider(label="Guidance Strength", minimum=1.5, maximum=10, step=0.1, value=4.5, interactive=True)
-                        duration_slider_video = gr.Slider(label="Duration (sec)", minimum=1, maximum=120, step=1, value=5, interactive=True)
-                    save_params_video = gr.Checkbox(label="Save Gen Params", value=True, interactive=True)
+                        duration_slider_video = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=5, interactive=True)
+                    with gr.Row():
+                        save_params_video = gr.Checkbox(label="Save Gen Params", value=True, interactive=True)
+                        save_audio_video = gr.Checkbox(label="Save Audio Separately", value=False, interactive=True)
                 with gr.Column(scale=1):
                     output_videos = gr.Gallery(label="Output Videos", show_label=True, elem_id="output_videos")
                     status_video = gr.Markdown(label="Status", value="")
@@ -891,22 +927,22 @@ with gr.Blocks() as demo:
                         batch_start_video = gr.Button("Start Batch Processing", variant="primary")
                         batch_cancel_video = gr.Button("Cancel Batch Processing")
                     batch_status_video = gr.Markdown(label="Batch Status", value="")
-            clear_btn_video.click(fn=lambda: (None, "", "music", -1, 50, 4.5, 5, 1, True),
+            clear_btn_video.click(fn=lambda: (None, "", "music", -1, 50, 4.5, 5, 1, True, False),
                                   outputs=[video_input, prompt_video, neg_prompt_video,
                                            seed_slider_video, steps_slider_video,
-                                           guidance_slider_video, duration_slider_video, gen_slider_video, save_params_video])
+                                           guidance_slider_video, duration_slider_video, gen_slider_video, save_params_video, save_audio_video])
             submit_btn_video.click(fn=lambda: ([], "Processing started..."),
                                    outputs=[output_videos, status_video])\
                 .then(video_to_audio_single_wrapper,
                       inputs=[video_input, prompt_video, neg_prompt_video, seed_slider_video, steps_slider_video,
-                              guidance_slider_video, duration_slider_video, gen_slider_video, save_params_video],
+                              guidance_slider_video, duration_slider_video, gen_slider_video, save_params_video, save_audio_video],
                       outputs=[output_videos, status_video])
             open_outputs_btn_video.click(fn=open_outputs_folder, outputs=[])
             batch_start_video.click(fn=lambda: "Processing started...", outputs=batch_status_video)\
                 .then(batch_video_processing_callback,
                       inputs=[batch_input_videos, batch_output_videos, skip_checkbox_video,
                               prompt_video, neg_prompt_video, seed_slider_video, steps_slider_video,
-                              guidance_slider_video, duration_slider_video, gen_slider_video, save_params_video],
+                              guidance_slider_video, duration_slider_video, gen_slider_video, save_params_video, save_audio_video],
                       outputs=batch_status_video)
             batch_cancel_video.click(fn=cancel_batch_video_func, outputs=batch_status_video)
         
@@ -975,6 +1011,7 @@ with gr.Blocks() as demo:
                         guidance_slider_image = gr.Slider(label="Guidance Strength", minimum=1.5, maximum=10, step=0.1, value=4.5, interactive=True)
                         duration_slider_image = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=5, interactive=True)
                     save_params_image = gr.Checkbox(label="Save Gen Params", value=True, interactive=True)
+                    save_audio_image = gr.Checkbox(label="Save Audio Separately", value=False, interactive=True)
                 with gr.Column(scale=1):
                     output_videos_image = gr.Gallery(label="Output Videos", show_label=True, elem_id="output_videos_image")
                     status_image = gr.Markdown(label="Status", value="")
@@ -988,22 +1025,22 @@ with gr.Blocks() as demo:
                         batch_start_image = gr.Button("Start Batch Processing", variant="primary")
                         batch_cancel_image = gr.Button("Cancel Batch Processing")
                     batch_status_image = gr.Markdown(label="Batch Status", value="")
-            clear_btn_image.click(fn=lambda: (None, "", "", -1, 50, 4.5, 5, 1, True),
+            clear_btn_image.click(fn=lambda: (None, "", "", -1, 50, 4.5, 5, 1, True, False),
                                   outputs=[image_input, prompt_image, neg_prompt_image,
                                            seed_slider_image, steps_slider_image,
-                                           guidance_slider_image, duration_slider_image, gen_slider_image, save_params_image])
+                                           guidance_slider_image, duration_slider_image, gen_slider_image, save_params_image, save_audio_image])
             submit_btn_image.click(fn=lambda: ([], "Processing started..."),
                                    outputs=[output_videos_image, status_image])\
                 .then(image_to_audio_single_wrapper,
                       inputs=[image_input, prompt_image, neg_prompt_image, seed_slider_image, steps_slider_image,
-                              guidance_slider_image, duration_slider_image, gen_slider_image, save_params_image],
+                              guidance_slider_image, duration_slider_image, gen_slider_image, save_params_image, save_audio_image],
                       outputs=[output_videos_image, status_image])
             open_outputs_btn_image.click(fn=open_outputs_folder, outputs=[])
             batch_start_image.click(fn=lambda: "Processing started...", outputs=batch_status_image)\
                 .then(batch_image_processing_callback,
                       inputs=[batch_input_images, batch_output_images, skip_checkbox_image,
                               prompt_image, neg_prompt_image, seed_slider_image, steps_slider_image,
-                              guidance_slider_image, duration_slider_image, gen_slider_image, save_params_image],
+                              guidance_slider_image, duration_slider_image, gen_slider_image, save_params_image, save_audio_image],
                       outputs=batch_status_image)
             batch_cancel_image.click(fn=cancel_batch_image_func, outputs=batch_status_image)
     
@@ -1012,27 +1049,27 @@ with gr.Blocks() as demo:
     save_config_btn.click(
         fn=save_config,
         inputs=[
-            config_name_text, config_dropdown,  # pass both new name and current selected config
-            prompt_video, neg_prompt_video, seed_slider_video, steps_slider_video, guidance_slider_video, duration_slider_video, gen_slider_video, save_params_video,
+            config_name_text, config_dropdown,  # new name and current selected
+            prompt_video, neg_prompt_video, seed_slider_video, steps_slider_video, guidance_slider_video, duration_slider_video, gen_slider_video, save_params_video, save_audio_video,
             batch_input_videos, batch_output_videos, skip_checkbox_video, batch_save_params_video,
             prompt_text, neg_prompt_text, seed_slider_text, gen_slider_text, steps_slider_text, guidance_slider_text, duration_slider_text, save_params_text,
             batch_prompts, batch_output_text, batch_save_params_text,
-            prompt_image, neg_prompt_image, seed_slider_image, gen_slider_image, steps_slider_image, guidance_slider_image, duration_slider_image, save_params_image,
+            prompt_image, neg_prompt_image, seed_slider_image, gen_slider_image, steps_slider_image, guidance_slider_image, duration_slider_image, save_params_image, save_audio_image,
             batch_input_images, batch_output_images, skip_checkbox_image, batch_save_params_image
         ],
         outputs=[config_status, config_dropdown]
     ).then(refresh_config_dropdown_select, inputs=[config_dropdown], outputs=[config_dropdown])
     
-    # Load Config: load the chosen config and update all UI elements; then update dropdown.
+    # Load Config: update all UI elements; then update dropdown.
     load_config_btn.click(
         fn=load_and_set_config,
         inputs=[config_dropdown],
         outputs=[
-            prompt_video, neg_prompt_video, seed_slider_video, gen_slider_video, steps_slider_video, guidance_slider_video, duration_slider_video, save_params_video,
+            prompt_video, neg_prompt_video, seed_slider_video, gen_slider_video, steps_slider_video, guidance_slider_video, duration_slider_video, save_params_video, save_audio_video,
             batch_input_videos, batch_output_videos, skip_checkbox_video, batch_save_params_video,
             prompt_text, neg_prompt_text, seed_slider_text, gen_slider_text, steps_slider_text, guidance_slider_text, duration_slider_text, save_params_text,
             batch_prompts, batch_output_text, batch_save_params_text,
-            prompt_image, neg_prompt_image, seed_slider_image, gen_slider_image, steps_slider_image, guidance_slider_image, duration_slider_image, save_params_image,
+            prompt_image, neg_prompt_image, seed_slider_image, gen_slider_image, steps_slider_image, guidance_slider_image, duration_slider_image, save_params_image, save_audio_image,
             batch_input_images, batch_output_images, skip_checkbox_image, batch_save_params_image,
             config_status
         ]
@@ -1042,11 +1079,11 @@ with gr.Blocks() as demo:
     demo.load(
         fn=lambda: load_and_set_config(get_last_used_config()),
         outputs=[
-            prompt_video, neg_prompt_video, seed_slider_video, gen_slider_video, steps_slider_video, guidance_slider_video, duration_slider_video, save_params_video,
+            prompt_video, neg_prompt_video, seed_slider_video, gen_slider_video, steps_slider_video, guidance_slider_video, duration_slider_video, save_params_video, save_audio_video,
             batch_input_videos, batch_output_videos, skip_checkbox_video, batch_save_params_video,
             prompt_text, neg_prompt_text, seed_slider_text, gen_slider_text, steps_slider_text, guidance_slider_text, duration_slider_text, save_params_text,
             batch_prompts, batch_output_text, batch_save_params_text,
-            prompt_image, neg_prompt_image, seed_slider_image, gen_slider_image, steps_slider_image, guidance_slider_image, duration_slider_image, save_params_image,
+            prompt_image, neg_prompt_image, seed_slider_image, gen_slider_image, steps_slider_image, guidance_slider_image, duration_slider_image, save_params_image, save_audio_image,
             batch_input_images, batch_output_images, skip_checkbox_image, batch_save_params_image,
             config_status
         ]
