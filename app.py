@@ -882,7 +882,7 @@ def load_and_set_config(config_name: str):
 # Gradio Interface – Using Blocks
 # --------------------------
 with gr.Blocks() as demo:
-    gr.Markdown("# MMAudio SECourses APP V7 : https://www.patreon.com/posts/117990364")
+    gr.Markdown("# MMAudio SECourses APP V8 : https://www.patreon.com/posts/117990364")
     
     # ---------------- Config Management Row ----------------
     with gr.Row():
@@ -910,7 +910,7 @@ with gr.Blocks() as demo:
                         steps_slider_video = gr.Slider(label="Num steps", minimum=10, maximum=100, step=1, value=50, interactive=True)
                     with gr.Row():
                         guidance_slider_video = gr.Slider(label="Guidance Strength", minimum=1.5, maximum=10, step=0.1, value=4.5, interactive=True)
-                        duration_slider_video = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=5, interactive=True)
+                        duration_slider_video = gr.Slider(label="Duration (sec)", minimum=1, maximum=90, step=1, value=5, interactive=True)
                     with gr.Row():
                         save_params_video = gr.Checkbox(label="Save Gen Params", value=True, interactive=True)
                         save_audio_video = gr.Checkbox(label="Save Audio Separately", value=False, interactive=True)
@@ -961,7 +961,7 @@ with gr.Blocks() as demo:
                         steps_slider_text = gr.Slider(label="Num steps", minimum=10, maximum=100, step=1, value=50, interactive=True)
                     with gr.Row():
                         guidance_slider_text = gr.Slider(label="Guidance Strength", minimum=1.5, maximum=10, step=0.1, value=4.5, interactive=True)
-                        duration_slider_text = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=5, interactive=True)
+                        duration_slider_text = gr.Slider(label="Duration (sec)", minimum=1, maximum=90, step=1, value=5, interactive=True)
                     save_params_text = gr.Checkbox(label="Save Gen Params", value=True, interactive=True)
                 with gr.Column(scale=1):
                     output_audios_html = gr.HTML(label="Output Audios")
@@ -1009,7 +1009,7 @@ with gr.Blocks() as demo:
                         steps_slider_image = gr.Slider(label="Num steps", minimum=10, maximum=100, step=1, value=50, interactive=True)
                     with gr.Row():
                         guidance_slider_image = gr.Slider(label="Guidance Strength", minimum=1.5, maximum=10, step=0.1, value=4.5, interactive=True)
-                        duration_slider_image = gr.Slider(label="Duration (sec)", minimum=1, maximum=30, step=1, value=5, interactive=True)
+                        duration_slider_image = gr.Slider(label="Duration (sec)", minimum=1, maximum=90, step=1, value=5, interactive=True)
                     save_params_image = gr.Checkbox(label="Save Gen Params", value=True, interactive=True)
                     save_audio_image = gr.Checkbox(label="Save Audio Separately", value=False, interactive=True)
                 with gr.Column(scale=1):
