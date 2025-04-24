@@ -882,7 +882,7 @@ def load_and_set_config(config_name: str):
 # Gradio Interface – Using Blocks
 # --------------------------
 with gr.Blocks() as demo:
-    gr.Markdown("# MMAudio SECourses APP V8 : https://www.patreon.com/posts/117990364")
+    gr.Markdown("# MMAudio SECourses APP V9 : https://www.patreon.com/posts/117990364")
     
     # ---------------- Config Management Row ----------------
     with gr.Row():
